@@ -121,8 +121,12 @@ const ENDPOINT = 'https://script.google.com/macros/s/AKfycbzaEaKtzv6FAni3PHPY66y
 
 let allRows = [];
 let currentFilter = 'user';
+let charts = {};
 
-function setFilter(filter) {
+function destroyCharts() {
+  Object.values(charts).forEach(c => { if (c) c.destroy(); });
+  charts = {};
+}
   currentFilter = filter;
   ['users','all','dev'].forEach(f => {
     const btn = document.getElementById('btn-' + f);
@@ -150,13 +154,7 @@ function setFilter(filter) {
 function filterRows(rows, filter) {
   if (filter === 'all') return rows;
   if (filter === 'developer') return rows.filter(r => r.role === 'developer');
-  // 'user' — wiersze bez roli lub z rolą 'user' (stare dane przed easter eggiem traktujemy jako użytkowników)
   return rows.filter(r => !r.role || r.role === 'user' || r.role === '');
-}
-
-function destroyCharts() {
-  Object.values(charts).forEach(c => { if (c) c.destroy(); });
-  charts = {};
 }
 
 async function loadData() {
