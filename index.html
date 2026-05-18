@@ -55,8 +55,14 @@
 </header>
 
 <div class="container">
-  <div style="margin: 1rem 0;">
+  <div style="margin: 1rem 0; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
     <button class="refresh-btn" onclick="loadData()">↻ Odśwież dane</button>
+    <div style="display:flex;border:1px solid #ddd;border-radius:6px;overflow:hidden;font-size:13px;">
+      <button id="btn-users" onclick="setFilter('user')" style="padding:7px 14px;border:none;cursor:pointer;background:#0d2259;color:white;">Użytkownicy</button>
+      <button id="btn-all" onclick="setFilter('all')" style="padding:7px 14px;border:none;cursor:pointer;background:#f0f0ec;color:#333;">Wszyscy</button>
+      <button id="btn-dev" onclick="setFilter('developer')" style="padding:7px 14px;border:none;cursor:pointer;background:#f0f0ec;color:#333;">Developer</button>
+    </div>
+    <span id="filter-note" style="font-size:12px;color:#888;"></span>
   </div>
 
   <div id="status">Ładowanie danych...</div>
@@ -113,7 +119,40 @@
 <script>
 const ENDPOINT = 'https://script.google.com/macros/s/AKfycbzaEaKtzv6FAni3PHPY66ySXjmfIEWIKNX7V9N6zIr5xa77SzWEaudvbrtscbSwG1Daag/exec';
 
-let charts = {};
+let allRows = [];
+let currentFilter = 'user';
+
+function setFilter(filter) {
+  currentFilter = filter;
+  ['users','all','dev'].forEach(f => {
+    const btn = document.getElementById('btn-' + f);
+    btn.style.background = '#f0f0ec';
+    btn.style.color = '#333';
+  });
+  document.getElementById('btn-' + (filter === 'user' ? 'users' : filter === 'all' ? 'all' : 'dev')).style.background = '#0d2259';
+  document.getElementById('btn-' + (filter === 'user' ? 'users' : filter === 'all' ? 'all' : 'dev')).style.color = 'white';
+
+  const notes = {
+    user: 'Filtrowanie: tylko prawdziwi użytkownicy (bez developera)',
+    all: 'Filtrowanie: wszystkie zdarzenia',
+    developer: 'Filtrowanie: tylko sesje developera'
+  };
+  document.getElementById('filter-note').textContent = notes[filter];
+
+  if (allRows.length) {
+    destroyCharts();
+    const filtered = filterRows(allRows, filter);
+    renderDashboard(filtered);
+    document.getElementById('dashboard').style.display = 'block';
+  }
+}
+
+function filterRows(rows, filter) {
+  if (filter === 'all') return rows;
+  if (filter === 'developer') return rows.filter(r => r.role === 'developer');
+  // 'user' — wiersze bez roli lub z rolą 'user' (stare dane przed easter eggiem traktujemy jako użytkowników)
+  return rows.filter(r => !r.role || r.role === 'user' || r.role === '');
+}
 
 function destroyCharts() {
   Object.values(charts).forEach(c => { if (c) c.destroy(); });
@@ -130,13 +169,22 @@ async function loadData() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const raw = await res.json();
 
-    const rows = raw.filter(r => r.Event && r.Timestamp);
+    allRows = raw.filter(r => r.Event && r.Timestamp).map(r => ({
+      ...r,
+      role: r.role || r.Role || ''
+    }));
 
     document.getElementById('last-updated').textContent =
       'Ostatnia aktualizacja: ' + new Date().toLocaleTimeString('pl-PL');
 
+    const devCount = allRows.filter(r => r.role === 'developer').length;
+    const userCount = allRows.filter(r => r.role !== 'developer').length;
+    document.getElementById('filter-note').textContent =
+      `Tylko prawdziwi użytkownicy · ${userCount} user / ${devCount} developer`;
+
     destroyCharts();
-    renderDashboard(rows);
+    const filtered = filterRows(allRows, currentFilter);
+    renderDashboard(filtered);
 
     document.getElementById('status').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
