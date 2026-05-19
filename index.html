@@ -15,6 +15,386 @@
   #status { text-align: center; padding: 3rem; color: #888; font-size: 15px; }
   #status.error { color: #c0392b; }
   .toolbar { margin: 1rem 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .toolbar-row2 { margin-bottom: 1rem; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .refresh-btn { background: #0d2259; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .refresh-btn:hover { background: #1a3580; }
+  .filter-group { display: flex; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; font-size: 13px; }
+  .filter-btn { padding: 7px 14px; border: none; cursor: pointer; background: #f0f0ec; color: #333; }
+  .filter-btn.active { background: #0d2259; color: white; }
+  .filter-note { font-size: 12px; color: #888; }
+  .date-label { font-size: 13px; color: #555; }
+  input[type="date"] { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; color: #333; background: white; }
+  .date-clear { font-size: 12px; color: #888; cursor: pointer; text-decoration: underline; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+  .kpi { background: white; border-radius: 10px; padding: 1rem 1.2rem; border: 1px solid #e8e8e4; }
+  .kpi-val { font-size: 28px; font-weight: 500; color: #0d2259; line-height: 1; }
+  .kpi-lbl { font-size: 12px; color: #888; margin-top: 5px; }
+  .kpi-sub { font-size: 11px; color: #aaa; margin-top: 2px; }
+  .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 1.5rem; }
+  .charts-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 1.5rem; }
+  .charts-row3 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 1.5rem; }
+  .card { background: white; border-radius: 10px; padding: 1.2rem; border: 1px solid #e8e8e4; }
+  .card-title { font-size: 12px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1rem; }
+  .event-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .event-lbl { font-size: 11px; color: #666; width: 200px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event-bar-bg { flex: 1; background: #f0f0ec; border-radius: 3px; height: 14px; }
+  .event-bar { height: 14px; border-radius: 3px; }
+  .event-count { font-size: 11px; color: #888; width: 36px; text-align: right; flex-shrink: 0; }
+  @media (max-width: 700px) { .charts-row, .charts-row2, .charts-row3 { grid-template-columns: 1fr; } .event-lbl { width: 130px; } }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+  <h1>MedOrganizer Pro — Admin</h1>
+  <span id="last-updated"></span>
+</header>
+
+<div class="container">
+  <div class="toolbar">
+    <button class="refresh-btn" onclick="loadData()">↻ Odśwież dane</button>
+    <div class="filter-group">
+      <button id="btn-user" class="filter-btn active" onclick="setFilter('user')">Użytkownicy</button>
+      <button id="btn-all" class="filter-btn" onclick="setFilter('all')">Wszyscy</button>
+      <button id="btn-developer" class="filter-btn" onclick="setFilter('developer')">Developer</button>
+    </div>
+    <span id="filter-note" class="filter-note"></span>
+  </div>
+
+  <div class="toolbar-row2">
+    <span class="date-label">Zakres dat:</span>
+    <input type="date" id="date-from" onchange="applyFilters()">
+    <span class="date-label">—</span>
+    <input type="date" id="date-to" onchange="applyFilters()">
+    <span class="date-clear" onclick="clearDates()">Wyczyść</span>
+    <span id="date-note" class="filter-note"></span>
+  </div>
+
+  <div id="status">Ładowanie danych...</div>
+
+  <div id="dashboard" style="display:none">
+    <div class="kpi-grid" id="kpis"></div>
+
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-title">Aktywność dzienna</div>
+        <div style="position:relative;height:220px"><canvas id="dailyChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Nowi vs powracający</div>
+        <div style="position:relative;height:180px"><canvas id="userChart"></canvas></div>
+        <div id="userLegend" style="margin-top:10px;font-size:11px;color:#888;display:flex;gap:12px;flex-wrap:wrap"></div>
+      </div>
+    </div>
+
+    <div class="charts-row3">
+      <div class="card">
+        <div class="card-title">Urządzenia</div>
+        <div style="position:relative;height:200px"><canvas id="deviceChart"></canvas></div>
+        <div id="deviceLegend" style="margin-top:10px;font-size:11px;color:#888;display:flex;gap:12px;flex-wrap:wrap"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Godziny aktywności</div>
+        <div style="position:relative;height:200px"><canvas id="hourlyChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="charts-row2">
+      <div class="card">
+        <div class="card-title">Akcje użytkownika</div>
+        <div style="position:relative;height:180px"><canvas id="actionsChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Urządzenia — sesje unikalne</div>
+        <div id="deviceBars" style="padding-top:4px"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="card-title">Wszystkie zdarzenia</div>
+      <div id="eventBars"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Ostatnie zdarzenia (50)</div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid #eee;color:#888">
+            <th style="text-align:left;padding:6px 8px;font-weight:500">Czas</th>
+            <th style="text-align:left;padding:6px 8px;font-weight:500">Zdarzenie</th>
+            <th style="text-align:left;padding:6px 8px;font-weight:500">Urządzenie</th>
+            <th style="text-align:left;padding:6px 8px;font-weight:500">Rola</th>
+            <th style="text-align:right;padding:6px 8px;font-weight:500">Recepty</th>
+          </tr></thead>
+          <tbody id="recentBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbzaEaKtzv6FAni3PHPY66ySXjmfIEWIKNX7V9N6zIr5xa77SzWEaudvbrtscbSwG1Daag/exec';
+
+let allRows = [];
+let currentFilter = 'user';
+let charts = {};
+
+function detectDevice(ua) {
+  if (!ua) return 'Nieznane';
+  const u = ua.toLowerCase();
+  if (u.includes('iphone') || u.includes('ipad')) return 'iOS';
+  if (u.includes('android')) return 'Android';
+  if (u.includes('macintosh') || u.includes('mac os x')) {
+    if (u.includes('mobile')) return 'iOS';
+    return 'Mac';
+  }
+  if (u.includes('windows')) return 'Windows';
+  return 'Inne';
+}
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e) {} });
+  charts = {};
+}
+
+function filterRows(rows, filter) {
+  if (filter === 'all') return rows;
+  if (filter === 'developer') return rows.filter(r => r.role === 'developer');
+  return rows.filter(r => !r.role || r.role === '' || r.role === 'user');
+}
+
+function applyDateFilter(rows) {
+  const from = document.getElementById('date-from').value;
+  const to = document.getElementById('date-to').value;
+  if (!from && !to) {
+    document.getElementById('date-note').textContent = '';
+    return rows;
+  }
+  const filtered = rows.filter(r => {
+    try {
+      const d = new Date(r.Timestamp).toISOString().slice(0, 10);
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    } catch(e) { return false; }
+  });
+  document.getElementById('date-note').textContent = filtered.length + ' zdarzeń w wybranym zakresie';
+  return filtered;
+}
+
+function clearDates() {
+  document.getElementById('date-from').value = '';
+  document.getElementById('date-to').value = '';
+  document.getElementById('date-note').textContent = '';
+  applyFilters();
+}
+
+function applyFilters() {
+  if (!allRows.length) return;
+  let rows = filterRows(allRows, currentFilter);
+  rows = applyDateFilter(rows);
+  destroyCharts();
+  renderDashboard(rows);
+  document.getElementById('dashboard').style.display = 'block';
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('btn-' + filter).classList.add('active');
+  const notes = {
+    user: 'Tylko prawdziwi użytkownicy (bez developera)',
+    all: 'Wszystkie zdarzenia łącznie',
+    developer: 'Tylko sesje developera'
+  };
+  document.getElementById('filter-note').textContent = notes[filter] || '';
+  applyFilters();
+}
+
+async function loadData() {
+  document.getElementById('status').textContent = 'Ładowanie danych...';
+  document.getElementById('status').className = '';
+  document.getElementById('status').style.display = 'block';
+  document.getElementById('dashboard').style.display = 'none';
+
+  try {
+    const res = await fetch(ENDPOINT);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const raw = await res.json();
+
+    allRows = raw
+      .filter(r => r.Event && r.Timestamp)
+      .map(r => ({ ...r, role: r.role || r.Role || '', device: detectDevice(r.User_Agent || r.user_agent || '') }));
+
+    const devCount = allRows.filter(r => r.role === 'developer').length;
+    const userCount = allRows.filter(r => r.role !== 'developer').length;
+
+    document.getElementById('last-updated').textContent =
+      'Ostatnia aktualizacja: ' + new Date().toLocaleTimeString('pl-PL');
+    document.getElementById('filter-note').textContent =
+      'Tylko prawdziwi użytkownicy · ' + userCount + ' user / ' + devCount + ' developer';
+
+    applyFilters();
+
+    document.getElementById('status').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+
+  } catch(err) {
+    document.getElementById('status').textContent = 'Błąd ładowania: ' + err.message;
+    document.getElementById('status').className = 'error';
+  }
+}
+
+function kpi(val, lbl, sub) {
+  return '<div class="kpi"><div class="kpi-val">' + val + '</div><div class="kpi-lbl">' + lbl + '</div><div class="kpi-sub">' + sub + '</div></div>';
+}
+
+function renderDashboard(rows) {
+  const events = {};
+  rows.forEach(r => { events[r.Event] = (events[r.Event] || 0) + 1; });
+
+  const sessions = new Set(rows.map(r => String(r.Session_ID)));
+  const newU = events['SESSION_NEW_USER'] || 0;
+  const retU = events['SESSION_RETURNING_USER'] || 0;
+
+  const daily = {}, dailySessions = {}, hourly = Array(24).fill(0);
+  const deviceSessions = {};
+
+  rows.forEach(r => {
+    try {
+      const d = new Date(r.Timestamp);
+      if (isNaN(d)) return;
+      const day = d.toISOString().slice(0, 10);
+      const hour = d.getHours();
+      daily[day] = (daily[day] || 0) + 1;
+      if (!dailySessions[day]) dailySessions[day] = new Set();
+      dailySessions[day].add(String(r.Session_ID));
+      hourly[hour]++;
+
+      const dev = r.device || 'Nieznane';
+      if (!deviceSessions[dev]) deviceSessions[dev] = new Set();
+      deviceSessions[dev].add(String(r.Session_ID));
+    } catch(e) {}
+  });
+
+  const sortedDays = Object.keys(daily).sort();
+  const avgDaily = sortedDays.length ? Math.round(rows.length / sortedDays.length) : 0;
+
+  // Top device
+  const topDevice = Object.entries(deviceSessions).sort((a,b) => b[1].size - a[1].size)[0];
+  const topDevStr = topDevice ? topDevice[0] + ' (' + topDevice[1].size + ' sesji)' : '—';
+
+  document.getElementById('kpis').innerHTML =
+    kpi(rows.length.toLocaleString('pl-PL'), 'Wszystkich zdarzeń', sortedDays.length + ' dni danych') +
+    kpi(sessions.size.toLocaleString('pl-PL'), 'Unikalne sesje', '~' + avgDaily + ' zdarzeń/dzień') +
+    kpi(newU, 'Nowi użytkownicy', (events['ONBOARDING_COMPLETED'] || 0) + ' ukończyło onboarding') +
+    kpi((newU + retU > 0 ? Math.round(retU / (newU + retU) * 100) : 0) + '%', 'Powracające sesje', retU + ' z ' + (newU + retU) + ' sesji') +
+    kpi(events['MED_BOUGHT'] || 0, 'Kupiono leków', (events['IMPORT_PDF_SUCCESS'] || 0) + ' importów PDF') +
+    kpi(events['QR_GENERATED'] || 0, 'Wygenerowano QR', 'Top: ' + topDevStr);
+
+  charts.daily = new Chart(document.getElementById('dailyChart'), {
+    type: 'bar',
+    data: {
+      labels: sortedDays.map(d => d.slice(5).replace('-', '.')),
+      datasets: [
+        { label: 'Zdarzenia', data: sortedDays.map(d => daily[d]), backgroundColor: '#1a3580', borderRadius: 3 },
+        { label: 'Sesje', data: sortedDays.map(d => dailySessions[d] ? dailySessions[d].size : 0), backgroundColor: 'rgba(29,158,117,0.75)', borderRadius: 3 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { ticks: { font: { size: 11 } }, grid: { display: false } }, y: { ticks: { font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } } } }
+  });
+
+  charts.user = new Chart(document.getElementById('userChart'), {
+    type: 'doughnut',
+    data: { labels: ['Nowi', 'Powracający'], datasets: [{ data: [newU, retU], backgroundColor: ['#1a3580', '#1D9E75'], borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '65%' }
+  });
+  document.getElementById('userLegend').innerHTML =
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#1a3580;display:inline-block"></span>Nowi ' + newU + '</span>' +
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#1D9E75;display:inline-block"></span>Powracający ' + retU + '</span>';
+
+  // Device chart
+  const deviceOrder = ['Windows', 'Android', 'iOS', 'Mac', 'Inne', 'Nieznane'];
+  const deviceColors = { Windows: '#1a3580', Android: '#1D9E75', iOS: '#BA7517', Mac: '#888', Inne: '#ccc', Nieznane: '#eee' };
+  const deviceLabels = deviceOrder.filter(d => deviceSessions[d]);
+  const deviceData = deviceLabels.map(d => deviceSessions[d].size);
+  const deviceColorsArr = deviceLabels.map(d => deviceColors[d] || '#ccc');
+
+  charts.device = new Chart(document.getElementById('deviceChart'), {
+    type: 'doughnut',
+    data: { labels: deviceLabels, datasets: [{ data: deviceData, backgroundColor: deviceColorsArr, borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '55%' }
+  });
+  document.getElementById('deviceLegend').innerHTML = deviceLabels.map((d, i) =>
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:' + deviceColorsArr[i] + ';display:inline-block"></span>' + d + ' ' + deviceData[i] + '</span>'
+  ).join('');
+
+  // Device bars (unique sessions)
+  const maxDev = Math.max(...deviceData, 1);
+  document.getElementById('deviceBars').innerHTML = deviceLabels.map((d, i) =>
+    '<div class="event-row"><div class="event-lbl">' + d + '</div><div class="event-bar-bg"><div class="event-bar" style="width:' + Math.round(deviceData[i] / maxDev * 100) + '%;background:' + deviceColorsArr[i] + '"></div></div><div class="event-count">' + deviceData[i] + '</div></div>'
+  ).join('');
+
+  const maxH = Math.max(...hourly, 1);
+  const hourLabels = Array.from({ length: 24 }, (_, i) => i + 'h');
+  charts.hourly = new Chart(document.getElementById('hourlyChart'), {
+    type: 'bar',
+    data: { labels: hourLabels, datasets: [{ data: hourly, backgroundColor: hourly.map(v => v >= maxH * 0.7 ? '#1a3580' : 'rgba(26,53,128,0.35)'), borderRadius: 2 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { ticks: { font: { size: 9 }, maxRotation: 0, autoSkip: false, callback: (v, i) => i % 4 === 0 ? hourLabels[i] : '' } }, y: { ticks: { font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } } } }
+  });
+
+  const actionKeys = ['MANUAL_PRESCRIPTION_ADD', 'APP_SYNC_GOOGLE', 'MED_BOUGHT', 'QR_GENERATED', 'IMPORT_PDF_SUCCESS', 'FILTER_USED', 'MANUAL_ADD_MED'];
+  const actionLabels = ['Recepty ręcznie', 'Sync Drive', 'Kup lek', 'QR', 'Import PDF', 'Filtr', 'Lek OTC'];
+  const actionColors = ['#D85A30', '#1a3580', '#1D9E75', '#BA7517', '#D85A30', '#888', '#1D9E75'];
+  charts.actions = new Chart(document.getElementById('actionsChart'), {
+    type: 'bar',
+    data: { labels: actionLabels, datasets: [{ data: actionKeys.map(k => events[k] || 0), backgroundColor: actionColors, borderRadius: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { ticks: { font: { size: 10 } }, grid: { display: false } }, y: { ticks: { font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } } } }
+  });
+
+  const sortedEvents = Object.entries(events).sort((a, b) => b[1] - a[1]);
+  const maxEv = sortedEvents[0] ? sortedEvents[0][1] : 1;
+  const evColors = { SESSION_RETURNING_USER: '#888', SESSION_NEW_USER: '#1a3580', DRIVE_CONNECTED: '#1D9E75', APP_SYNC_GOOGLE: '#1D9E75', MANUAL_PRESCRIPTION_ADD: '#D85A30', MED_BOUGHT: '#1D9E75', QR_GENERATED: '#BA7517', IMPORT_PDF_SUCCESS: '#D85A30', FILTER_USED: '#888', ONBOARDING_COMPLETED: '#1a3580' };
+  document.getElementById('eventBars').innerHTML = sortedEvents.map(([ev, cnt]) =>
+    '<div class="event-row"><div class="event-lbl">' + ev + '</div><div class="event-bar-bg"><div class="event-bar" style="width:' + Math.round(cnt / maxEv * 100) + '%;background:' + (evColors[ev] || '#888') + '"></div></div><div class="event-count">' + cnt + '</div></div>'
+  ).join('');
+
+  const recent = [...rows].reverse().slice(0, 50);
+  document.getElementById('recentBody').innerHTML = recent.map(r => {
+    let timeStr = '';
+    try { timeStr = new Date(r.Timestamp).toLocaleString('pl-PL'); } catch(e) { timeStr = String(r.Timestamp).slice(0, 19); }
+    const roleColor = r.role === 'developer' ? '#9b59b6' : '#888';
+    const devColors = { Windows: '#1a3580', Android: '#1D9E75', iOS: '#BA7517', Mac: '#888' };
+    const devColor = devColors[r.device] || '#aaa';
+    return '<tr style="border-bottom:1px solid #f5f5f0"><td style="padding:5px 8px;color:#666">' + timeStr + '</td><td style="padding:5px 8px;font-weight:500">' + r.Event + '</td><td style="padding:5px 8px;color:' + devColor + ';font-size:11px">' + (r.device || '—') + '</td><td style="padding:5px 8px;color:' + roleColor + ';font-size:11px">' + (r.role || 'user') + '</td><td style="padding:5px 8px;text-align:right;color:#888">' + (r.prescriptions || '') + '</td></tr>';
+  }).join('');
+}
+
+loadData();
+</script>
+</body>
+</html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedOrganizer — Admin Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #1a1a1a; min-height: 100vh; }
+  header { background: #0d2259; color: white; padding: 1rem 2rem; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 500; }
+  header span { font-size: 13px; opacity: 0.6; margin-left: auto; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+  #status { text-align: center; padding: 3rem; color: #888; font-size: 15px; }
+  #status.error { color: #c0392b; }
+  .toolbar { margin: 1rem 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .refresh-btn { background: #0d2259; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; }
   .refresh-btn:hover { background: #1a3580; }
   .filter-group { display: flex; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; font-size: 13px; }
